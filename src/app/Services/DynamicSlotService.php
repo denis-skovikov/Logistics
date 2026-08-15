@@ -79,8 +79,71 @@ class DynamicSlotService implements SlotServiceInterface
 
     public function createHold(int $slotId, string $idempotencyKey): array
     {
-        // TODO: реализация
-        return [];
+        // Идемпотентность: проверяем существующий холд
+        $existing = \App\Models\Hold::where('idempotency_key', $idempotencyKey)->first();
+        if ($existing) {
+            return [
+                'data' => [
+                    'hold_id' => $existing->id,
+                    'slot_id' => $existing->slot_id,
+                    'status' => $existing->status->value,
+                    'created_at' => $existing->created_at->toIso8601String(),
+                ],
+                'status' => 201,
+            ];
+        }
+
+        // Проверяем существование слота
+        $slot = Slot::find($slotId);
+        if (!$slot) {
+            return [
+                'data' => ['message' => 'Slot not found.'],
+                'status' => 404,
+            ];
+        }
+
+        return DB::transaction(function () use ($slotId, $slot, $idempotencyKey) {
+            // SELECT FOR UPDATE — блокируем строку слота для атомарной проверки
+            $locked = DB::table('slots')
+                ->where('id', $slotId)
+                ->lockForUpdate()
+                ->first();
+
+            // Считаем занятые места динамически
+            $activeHolds = DB::table('holds')
+                ->where('slot_id', $slotId)
+                ->whereIn('status', [HoldStatus::Held->value, HoldStatus::Confirmed->value])
+                ->count();
+
+            $remaining = $locked->capacity - $activeHolds;
+
+            if ($remaining <= 0) {
+                return [
+                    'data' => ['message' => 'No available capacity.'],
+                    'status' => 409,
+                ];
+            }
+
+            // Создаём холд
+            $hold = \App\Models\Hold::create([
+                'slot_id' => $slotId,
+                'idempotency_key' => $idempotencyKey,
+                'status' => HoldStatus::Held,
+            ]);
+
+            // Инвалидируем кеш
+            Cache::forget(config('slots.cache_key'));
+
+            return [
+                'data' => [
+                    'hold_id' => $hold->id,
+                    'slot_id' => $hold->slot_id,
+                    'status' => $hold->status->value,
+                    'created_at' => $hold->created_at->toIso8601String(),
+                ],
+                'status' => 201,
+            ];
+        });
     }
 
     public function confirmHold(int $holdId): array
