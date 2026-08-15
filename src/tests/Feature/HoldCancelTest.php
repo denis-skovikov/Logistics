@@ -83,9 +83,9 @@ class HoldCancelTest extends TestCase
     }
 
     /**
-     * Проверяет что нельзя отменить уже отменённый холд.
+     * Проверяет что повторная отмена уже отменённого холда возвращает 200 (идемпотентность).
      */
-    public function test_cancel_already_cancelled_hold_fails(): void
+    public function test_cancel_already_cancelled_hold_is_idempotent(): void
     {
         $slot = Slot::create(['capacity' => 5, 'remaining' => 4]);
         $hold = Hold::create([
@@ -96,7 +96,8 @@ class HoldCancelTest extends TestCase
 
         $response = $this->deleteJson("/api/v1/holds/{$hold->id}");
 
-        $response->assertStatus(409);
+        $response->assertOk();
+        $response->assertJsonFragment(['status' => 'cancelled']);
     }
 
     /**

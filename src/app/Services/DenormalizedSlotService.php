@@ -181,7 +181,55 @@ class DenormalizedSlotService implements SlotServiceInterface
 
     public function cancelHold(int $holdId): array
     {
-        // TODO: реализация
-        return [];
+        $hold = Hold::find($holdId);
+
+        if (!$hold) {
+            return [
+                'data' => ['message' => 'Hold not found.'],
+                'status' => 404,
+            ];
+        }
+
+        // Отменять можно только холды со статусом held
+        if ($hold->status !== HoldStatus::Held) {
+            // Идемпотентность: если уже cancelled — возвращаем объект
+            if ($hold->status === HoldStatus::Cancelled) {
+                return [
+                    'data' => [
+                        'hold_id' => $hold->id,
+                        'slot_id' => $hold->slot_id,
+                        'status' => $hold->status->value,
+                        'cancelled_at' => $hold->updated_at->toIso8601String(),
+                    ],
+                    'status' => 200,
+                ];
+            }
+
+            return [
+                'data' => ['message' => 'Hold cannot be cancelled. Current status: ' . $hold->status->value],
+                'status' => 409,
+            ];
+        }
+
+        DB::transaction(function () use ($hold) {
+            $hold->update(['status' => HoldStatus::Cancelled]);
+
+            DB::table('slots')
+                ->where('id', $hold->slot_id)
+                ->update(['remaining' => DB::raw('remaining + 1'), 'updated_at' => now()]);
+        });
+
+        // Инвалидируем кеш
+        Cache::forget(config('slots.cache_key'));
+
+        return [
+            'data' => [
+                'hold_id' => $hold->id,
+                'slot_id' => $hold->slot_id,
+                'status' => $hold->status->value,
+                'cancelled_at' => $hold->updated_at->toIso8601String(),
+            ],
+            'status' => 200,
+        ];
     }
 }

@@ -27,4 +27,12 @@ class HoldController extends Controller
         return response()->json($result['data'], $result['status'])
             ->header('X-Provider', config('slots.provider'));
     }
+
+    public function destroy(int $holdId): JsonResponse
+    {
+        $result = $this->slotService->cancelHold($holdId);
+
+        return response()->json($result['data'], $result['status'])
+            ->header('X-Provider', config('slots.provider'));
+    }
 }
