@@ -1,0 +1,13 @@
+# Docker volumes
+mysql_data/
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

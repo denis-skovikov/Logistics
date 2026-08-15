@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: logistics_app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html/public
+    networks:
+      - logistics
+
+  mysql:
+    image: mysql:8.0
+    container_name: logistics_mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-logistics}
+      MYSQL_USER: ${DB_USERNAME:-logistics}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - logistics
+
+  redis:
+    image: redis:7-alpine
+    container_name: logistics_redis
+    ports:
+      - "6380:6379"
+    networks:
+      - logistics
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: logistics_phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    depends_on:
+      - mysql
+    networks:
+      - logistics
+
+volumes:
+  mysql_data:
+
+networks:
+  logistics:
+    driver: bridge
