@@ -32,6 +32,9 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # Рабочая директория
 WORKDIR /var/www/html
 
+# PHP настройки
+COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+
 # Права для Apache
 RUN chown -R www-data:www-data /var/www/html
 

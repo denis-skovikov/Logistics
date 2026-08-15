@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ResponseHeader;
 use App\Http\Requests\SlotIndexRequest;
 use App\Services\SlotServiceInterface;
 use Illuminate\Http\JsonResponse;
@@ -23,8 +24,8 @@ class SlotController extends Controller
         }
 
         return response()->json($data)
-            ->header('X-Cache', $result['cache'])
-            ->header('X-Query-Time', $result['query_time'])
-            ->header('X-Provider', config('slots.provider'));
+            ->header(ResponseHeader::Cache->value, $result['cache'])
+            ->header(ResponseHeader::QueryTime->value, $result['query_time'])
+            ->header(ResponseHeader::Provider->value, config('slots.provider'));
     }
 }
