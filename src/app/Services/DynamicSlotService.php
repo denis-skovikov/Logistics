@@ -148,8 +148,50 @@ class DynamicSlotService implements SlotServiceInterface
 
     public function confirmHold(int $holdId): array
     {
-        // TODO: реализация
-        return [];
+        $hold = \App\Models\Hold::find($holdId);
+
+        if (!$hold) {
+            return [
+                'data' => ['message' => 'Hold not found.'],
+                'status' => 404,
+            ];
+        }
+
+        // Можно подтвердить только холд со статусом held
+        if ($hold->status !== HoldStatus::Held) {
+            return [
+                'data' => ['message' => 'Hold cannot be confirmed. Current status: ' . $hold->status->value],
+                'status' => 409,
+            ];
+        }
+
+        // Проверяем просроченность по created_at + hold_ttl
+        $holdTtl = config('slots.hold_ttl');
+        if ($hold->created_at->addMinutes($holdTtl)->isPast()) {
+            // Ленивая очистка: отменяем просроченный холд (remaining не трогаем — считается динамически)
+            $hold->update(['status' => HoldStatus::Cancelled]);
+
+            // Инвалидируем кеш
+            Cache::forget(config('slots.cache_key'));
+
+            return [
+                'data' => ['message' => 'Hold expired and has been cancelled.'],
+                'status' => 410,
+            ];
+        }
+
+        // Подтверждаем холд
+        $hold->update(['status' => HoldStatus::Confirmed]);
+
+        return [
+            'data' => [
+                'hold_id' => $hold->id,
+                'slot_id' => $hold->slot_id,
+                'status' => $hold->status->value,
+                'confirmed_at' => $hold->updated_at->toIso8601String(),
+            ],
+            'status' => 200,
+        ];
     }
 
     public function cancelHold(int $holdId): array
