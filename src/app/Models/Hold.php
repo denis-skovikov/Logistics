@@ -12,6 +12,7 @@ class Hold extends Model
         'slot_id',
         'idempotency_key',
         'status',
+        'created_at',
     ];
 
     protected function casts(): array

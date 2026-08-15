@@ -19,4 +19,12 @@ class HoldController extends Controller
         return response()->json($result['data'], $result['status'])
             ->header('X-Provider', config('slots.provider'));
     }
+
+    public function confirm(int $holdId): JsonResponse
+    {
+        $result = $this->slotService->confirmHold($holdId);
+
+        return response()->json($result['data'], $result['status'])
+            ->header('X-Provider', config('slots.provider'));
+    }
 }
