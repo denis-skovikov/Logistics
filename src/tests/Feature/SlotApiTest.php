@@ -46,7 +46,14 @@ class SlotApiTest extends TestCase
      */
     public function test_get_slots_includes_zero_remaining(): void
     {
-        Slot::create(['capacity' => 5, 'remaining' => 0]);
+        $slot = Slot::create(['capacity' => 1, 'remaining' => 0]);
+
+        // Создаём активный холд чтобы remaining=0 работало и для Dynamic
+        Hold::create([
+            'slot_id' => $slot->id,
+            'idempotency_key' => \Illuminate\Support\Str::uuid()->toString(),
+            'status' => \App\Enums\HoldStatus::Held,
+        ]);
 
         $response = $this->getJson('/api/v1/slots');
 
