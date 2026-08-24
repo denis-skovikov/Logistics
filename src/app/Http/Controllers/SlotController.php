@@ -17,15 +17,15 @@ class SlotController extends Controller
     {
         $result = $this->slotService->getSlots();
 
-        $data = $result['data'];
+        $data = $result->toArray();
 
         if ($request->has('limit')) {
             $data = array_slice($data, 0, (int) $request->query('limit'));
         }
 
         return response()->json($data)
-            ->header(ResponseHeader::Cache->value, $result['cache'])
-            ->header(ResponseHeader::QueryTime->value, $result['query_time'])
+            ->header(ResponseHeader::Cache->value, $result->cache)
+            ->header(ResponseHeader::QueryTime->value, $result->queryTime)
             ->header(ResponseHeader::Provider->value, config('slots.provider'));
     }
 }

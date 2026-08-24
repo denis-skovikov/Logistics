@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\DTO\HoldData;
+use App\DTO\SlotData;
+use App\DTO\SlotListResult;
 use App\Enums\HoldStatus;
 use App\Exceptions\CapacityExhaustedException;
 use App\Exceptions\HoldConflictException;
@@ -18,9 +21,9 @@ class DynamicSlotService implements SlotServiceInterface
         private readonly SlotCacheService $cache,
     ) {}
 
-    public function getSlots(): array
+    public function getSlots(): SlotListResult
     {
-        return $this->cache->remember(function () {
+        $result = $this->cache->remember(function () {
             return DB::table('slots')
                 ->leftJoin('holds', function ($join) {
                     $join->on('slots.id', '=', 'holds.slot_id')
@@ -40,19 +43,26 @@ class DynamicSlotService implements SlotServiceInterface
                 ])
                 ->toArray();
         });
+
+        $slots = array_map(
+            fn ($item) => new SlotData($item['slot_id'], $item['capacity'], $item['remaining']),
+            $result['data']
+        );
+
+        return new SlotListResult($slots, $result['cache'], $result['query_time']);
     }
 
-    public function createHold(int $slotId, string $idempotencyKey): array
+    public function createHold(int $slotId, string $idempotencyKey): HoldData
     {
         // Идемпотентность: проверяем существующий холд
         $existing = Hold::where('idempotency_key', $idempotencyKey)->first();
         if ($existing) {
-            return [
-                'hold_id' => $existing->id,
-                'slot_id' => $existing->slot_id,
-                'status' => $existing->status->value,
-                'created_at' => $existing->created_at->toIso8601String(),
-            ];
+            return new HoldData(
+                holdId: $existing->id,
+                slotId: $existing->slot_id,
+                status: $existing->status->value,
+                createdAt: $existing->created_at->toIso8601String(),
+            );
         }
 
         // Проверяем существование слота
@@ -61,7 +71,7 @@ class DynamicSlotService implements SlotServiceInterface
             throw new SlotNotFoundException($slotId);
         }
 
-        return DB::transaction(function () use ($slotId, $idempotencyKey) {
+        return DB::transaction(function () use ($slotId, $idempotencyKey): HoldData {
             // SELECT FOR UPDATE — блокируем строку слота для атомарной проверки
             $locked = DB::table('slots')
                 ->where('id', $slotId)
@@ -90,16 +100,16 @@ class DynamicSlotService implements SlotServiceInterface
             // Инвалидируем кеш
             $this->cache->invalidate();
 
-            return [
-                'hold_id' => $hold->id,
-                'slot_id' => $hold->slot_id,
-                'status' => $hold->status->value,
-                'created_at' => $hold->created_at->toIso8601String(),
-            ];
+            return new HoldData(
+                holdId: $hold->id,
+                slotId: $hold->slot_id,
+                status: $hold->status->value,
+                createdAt: $hold->created_at->toIso8601String(),
+            );
         });
     }
 
-    public function confirmHold(int $holdId): array
+    public function confirmHold(int $holdId): HoldData
     {
         $hold = Hold::find($holdId);
 
@@ -126,15 +136,16 @@ class DynamicSlotService implements SlotServiceInterface
         // Подтверждаем холд
         $hold->update(['status' => HoldStatus::Confirmed]);
 
-        return [
-            'hold_id' => $hold->id,
-            'slot_id' => $hold->slot_id,
-            'status' => $hold->status->value,
-            'confirmed_at' => $hold->updated_at->toIso8601String(),
-        ];
+        return new HoldData(
+            holdId: $hold->id,
+            slotId: $hold->slot_id,
+            status: $hold->status->value,
+            createdAt: $hold->created_at->toIso8601String(),
+            confirmedAt: $hold->updated_at->toIso8601String(),
+        );
     }
 
-    public function cancelHold(int $holdId): array
+    public function cancelHold(int $holdId): HoldData
     {
         $hold = Hold::find($holdId);
 
@@ -144,12 +155,13 @@ class DynamicSlotService implements SlotServiceInterface
 
         // Идемпотентность: если уже cancelled — возвращаем объект
         if ($hold->status === HoldStatus::Cancelled) {
-            return [
-                'hold_id' => $hold->id,
-                'slot_id' => $hold->slot_id,
-                'status' => $hold->status->value,
-                'cancelled_at' => $hold->updated_at->toIso8601String(),
-            ];
+            return new HoldData(
+                holdId: $hold->id,
+                slotId: $hold->slot_id,
+                status: $hold->status->value,
+                createdAt: $hold->created_at->toIso8601String(),
+                cancelledAt: $hold->updated_at->toIso8601String(),
+            );
         }
 
         // Отменять можно только холды со статусом held
@@ -162,11 +174,12 @@ class DynamicSlotService implements SlotServiceInterface
 
         $this->cache->invalidate();
 
-        return [
-            'hold_id' => $hold->id,
-            'slot_id' => $hold->slot_id,
-            'status' => $hold->status->value,
-            'cancelled_at' => $hold->updated_at->toIso8601String(),
-        ];
+        return new HoldData(
+            holdId: $hold->id,
+            slotId: $hold->slot_id,
+            status: $hold->status->value,
+            createdAt: $hold->created_at->toIso8601String(),
+            cancelledAt: $hold->updated_at->toIso8601String(),
+        );
     }
 }

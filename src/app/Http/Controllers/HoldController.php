@@ -23,7 +23,7 @@ class HoldController extends Controller
         try {
             $data = $this->slotService->createHold($slotId, $request->header('Idempotency-Key'));
 
-            return response()->json($data, 201)
+            return response()->json($data->toArray(), 201)
                 ->header(ResponseHeader::Provider->value, config('slots.provider'));
         } catch (SlotNotFoundException $e) {
             return response()->json(['message' => $e->getMessage()], 404)
@@ -39,7 +39,7 @@ class HoldController extends Controller
         try {
             $data = $this->slotService->confirmHold($holdId);
 
-            return response()->json($data, 200)
+            return response()->json($data->toArray(), 200)
                 ->header(ResponseHeader::Provider->value, config('slots.provider'));
         } catch (HoldNotFoundException $e) {
             return response()->json(['message' => $e->getMessage()], 404)
@@ -58,7 +58,7 @@ class HoldController extends Controller
         try {
             $data = $this->slotService->cancelHold($holdId);
 
-            return response()->json($data, 200)
+            return response()->json($data->toArray(), 200)
                 ->header(ResponseHeader::Provider->value, config('slots.provider'));
         } catch (HoldNotFoundException $e) {
             return response()->json(['message' => $e->getMessage()], 404)
